@@ -1,34 +1,40 @@
 package com.sarmale.arduinobtexample_v3;
 
-
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothSocket;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.os.SystemClock;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import androidx.annotation.NonNull;
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.FileProvider;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,14 +43,27 @@ import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
 
 public class MainActivity extends AppCompatActivity {
-   // Global variables we will use in the
+    // Global variables we will use in the
     private static final String TAG = "FrugalLogs";
     private static final int REQUEST_ENABLE_BT = 1;
+
+    private static final int REQUEST_CODE = 22;
+
+    Button btnpicture;
+
+    ImageView imageView;
+
+    ActivityResultLauncher<Intent> activityResultLauncher;
+
     //We will use a Handler to get the BT Connection statys
     public static Handler handler;
     private final static int ERROR_READ = 0; // used in bluetooth handler to identify message update
     BluetoothDevice arduinoBTModule = null;
+
+    ProgressBar loadingProgressBar;
+
     UUID arduinoUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"); //We declare a default UUID to create the global variable
+
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,19 +75,20 @@ public class MainActivity extends AppCompatActivity {
         //Intances of the Android UI elements that will will use during the execution of the APP
         TextView btReadings = findViewById(R.id.btReadings);
         Button connectToDevice = (Button) findViewById(R.id.connectToDevice);
+        loadingProgressBar = findViewById(R.id.loadingProgressBar);
         Button clearValues = (Button) findViewById(R.id.refresh);
+        btnpicture = findViewById(R.id.btncamera_id);
+        imageView = findViewById(R.id.image);
         Log.d(TAG, "Begin Execution");
 
 
-        //Using a handler to update the interface in case of an error connecting to the BT device
-        //My idea is to show handler vs RxAndroid
         handler = new Handler(Looper.getMainLooper()) {
             @Override
             public void handleMessage(Message msg) {
                 switch (msg.what) {
 
                     case ERROR_READ:
-                       String arduinoMsg = msg.obj.toString(); // Read message from Arduino
+                        String arduinoMsg = msg.obj.toString(); // Read message from Arduino
                         btReadings.setText(arduinoMsg);
                         break;
                 }
@@ -80,6 +100,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 btReadings.setText("");
+                imageView.setImageDrawable(null);
             }
         });
 
@@ -98,8 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 //The pass the Open socket as arguments to call the constructor of ConnectedThread
                 ConnectedThread connectedThread = new ConnectedThread(connectThread.getMmSocket());
                 connectedThread.run();
-                if(connectedThread.getValueRead()!=null)
-                {
+                if (connectedThread.getValueRead() != null) {
                     // If we have read a value from the Arduino
                     // we call the onNext() function
                     //This value will be observed by the observer
@@ -108,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
                 //We just want to stream 1 value, so we close the BT stream
                 connectedThread.cancel();
             }
-           // SystemClock.sleep(5000); // simulate delay
+            // SystemClock.sleep(5000); // simulate delay
             //Then we close the socket connection
             connectThread.cancel();
             //We could Override the onComplete function
@@ -117,11 +137,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-
         connectToDevice.setOnClickListener(new View.OnClickListener() {
             // Display all the linked BT Devices
             @Override
             public void onClick(View view) {
+                loadingProgressBar.setVisibility(View.VISIBLE);
                 // Check if the phone supports BT
                 if (bluetoothAdapter == null) {
                     Log.d(TAG, "Device doesn't support Bluetooth");
@@ -155,18 +175,18 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         // Bluetooth is enabled, and we have permissions, proceed to search devices
                         Log.d(TAG, "Bluetooth is enabled");
-                        String btDevicesString="";
-                        Set < BluetoothDevice > pairedDevices = bluetoothAdapter.getBondedDevices();
+                        String btDevicesString = "";
+                        Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
 
                         if (pairedDevices.size() > 0) {
                             // There are paired devices. Get the name and address of each paired device.
-                            for (BluetoothDevice device: pairedDevices) {
+                            for (BluetoothDevice device : pairedDevices) {
                                 String deviceName = device.getName();
                                 String deviceHardwareAddress = device.getAddress(); // MAC address
                                 Log.d(TAG, "deviceName:" + deviceName);
                                 Log.d(TAG, "deviceHardwareAddress:" + deviceHardwareAddress);
                                 //We append all devices to a String that we will display in the UI
-                                btDevicesString=btDevicesString+deviceName+" || "+deviceHardwareAddress+"\n";
+                                btDevicesString = btDevicesString + deviceName + " || " + deviceHardwareAddress + "\n";
                                 //If we find the HC 05 device (the Arduino BT module)
                                 //We assign the device value to the Global variable BluetoothDevice
                                 //We enable the button "Connect to HC 05 device"
@@ -184,6 +204,8 @@ public class MainActivity extends AppCompatActivity {
                                                     .subscribeOn(Schedulers.io())
                                                     .subscribe(valueRead -> {
                                                         btReadings.setText(valueRead);
+                                                        loadingProgressBar.setVisibility(View.INVISIBLE);
+                                                        clearValues.setVisibility(View.VISIBLE);
                                                     });
                                         }
                                     }
@@ -196,6 +218,60 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        btnpicture.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                activityResultLauncher.launch(cameraIntent);
+            }
+        });
+
+        activityResultLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
+            @Override
+            public void onActivityResult(ActivityResult result) {
+
+                Bundle extras = result.getData().getExtras();
+                Uri imageUri;
+
+                Bitmap imageBitmap = (Bitmap) extras.get("data");
+
+                WeakReference<Bitmap> result_1 = new WeakReference<>(Bitmap.createScaledBitmap(imageBitmap,
+
+                                imageBitmap.getWidth(), imageBitmap.getHeight(), false).
+
+                        copy(Bitmap.Config.RGB_565, true));
+
+                Bitmap bm = result_1.get();
+
+                imageUri = saveImage(bm, MainActivity.this);
+
+                imageView.setImageURI(imageUri);
+                clearValues.setVisibility(View.VISIBLE);
+            }
+        });
+
+    }
+
+    private Uri saveImage(Bitmap image, MainActivity context) {
+
+        File imagefolder = new File(context.getCacheDir(), "images");
+        Uri uri = null;
+
+        try {
+            imagefolder.mkdirs();
+            File file = new File(imagefolder, "captured_image.jpg");
+            FileOutputStream stream = new FileOutputStream(file);
+            image.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+            stream.flush();
+            stream.close();
+            uri = FileProvider.getUriForFile(context.getApplicationContext(), "com.sarmale.arduinobtexample_v3.provider", file);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return uri;
 
     }
 
