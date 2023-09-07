@@ -64,7 +64,13 @@ public class ConnectedThread extends Thread {
                     readMessage = new String(buffer, 0, bytes);
                     Log.e(TAG, readMessage);
                     //Value to be read by the Observer streamed by the Obervable
-                    valueRead=readMessage;
+
+                    if (readMessage.contains("Temperature:")) {
+                        valueRead = readMessage;
+                    } else if (readMessage.contains("Humidity:")) {
+                        valueRead = readMessage;
+                    }
+
                     bytes = 0;
                     numberOfReadings++;
                 } else {
