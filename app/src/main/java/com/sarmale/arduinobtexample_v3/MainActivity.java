@@ -45,9 +45,9 @@ import io.reactivex.schedulers.Schedulers;
 public class MainActivity extends AppCompatActivity {
     // Global variables we will use in the
     private static final String TAG = "FrugalLogs";
-    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int REQUEST_ENABLE_BT = 22;
 
-    private static final int REQUEST_CODE = 22;
+    private static final int PERMISSION_REQUEST_CODE = 122;
 
     Button btnpicture;
 
@@ -81,6 +81,17 @@ public class MainActivity extends AppCompatActivity {
         imageView = findViewById(R.id.image);
         Log.d(TAG, "Begin Execution");
 
+        ActivityCompat.requestPermissions(this, new String[]{
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.CAMERA,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+        }, PERMISSION_REQUEST_CODE);
+
 
         handler = new Handler(Looper.getMainLooper()) {
             @Override
@@ -101,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
                 btReadings.setText("");
                 imageView.setImageDrawable(null);
+                clearValues.setVisibility(View.INVISIBLE);
             }
         });
 
@@ -168,54 +180,42 @@ public class MainActivity extends AppCompatActivity {
                         Log.d(TAG, "Bluetooth is enabled now");
                     }
                 } else {
-                    // Bluetooth is already enabled, check permissions
-                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
-                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN}, REQUEST_ENABLE_BT);
-                        Log.d(TAG, "Requesting Bluetooth permissions");
-                    } else {
-                        // Bluetooth is enabled, and we have permissions, proceed to search devices
-                        Log.d(TAG, "Bluetooth is enabled");
-                        String btDevicesString = "";
-                        Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+                    Log.d(TAG, "Bluetooth is enabled");
+                }
 
-                        if (pairedDevices.size() > 0) {
-                            // There are paired devices. Get the name and address of each paired device.
-                            for (BluetoothDevice device : pairedDevices) {
-                                String deviceName = device.getName();
-                                String deviceHardwareAddress = device.getAddress(); // MAC address
-                                Log.d(TAG, "deviceName:" + deviceName);
-                                Log.d(TAG, "deviceHardwareAddress:" + deviceHardwareAddress);
-                                //We append all devices to a String that we will display in the UI
-                                btDevicesString = btDevicesString + deviceName + " || " + deviceHardwareAddress + "\n";
-                                //If we find the HC 05 device (the Arduino BT module)
-                                //We assign the device value to the Global variable BluetoothDevice
-                                //We enable the button "Connect to HC 05 device"
-                                if (deviceName.equals("HC-05")) {
-                                    Log.d(TAG, "HC-05 found");
-                                    arduinoUUID = device.getUuids()[0].getUuid();
-                                    arduinoBTModule = device;
-                                    btReadings.setText("");
-                                    if (arduinoBTModule != null) {
-                                        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
-                                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN}, REQUEST_ENABLE_BT);
-                                        } else {
-                                            connectToBTObservable
-                                                    .observeOn(AndroidSchedulers.mainThread())
-                                                    .subscribeOn(Schedulers.io())
-                                                    .subscribe(valueRead -> {
-                                                        btReadings.setText(valueRead);
-                                                        loadingProgressBar.setVisibility(View.INVISIBLE);
-                                                        clearValues.setVisibility(View.VISIBLE);
-                                                    });
-                                        }
-                                    }
-                                }
-                            }
+                String btDevicesString = "";
+                Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+
+                if (pairedDevices.size() > 0) {
+                    // There are paired devices. Get the name and address of each paired device.
+                    for (BluetoothDevice device : pairedDevices) {
+                        String deviceName = device.getName();
+                        String deviceHardwareAddress = device.getAddress(); // MAC address
+                        Log.d(TAG, "deviceName:" + deviceName);
+                        Log.d(TAG, "deviceHardwareAddress:" + deviceHardwareAddress);
+                        //We append all devices to a String that we will display in the UI
+                        btDevicesString = btDevicesString + deviceName + " || " + deviceHardwareAddress + "\n";
+                        //If we find the HC 05 device (the Arduino BT module)
+                        //We assign the device value to the Global variable BluetoothDevice
+                        //We enable the button "Connect to HC 05 device"
+                        if (deviceName.equals("HC-05")) {
+                            Log.d(TAG, "HC-05 found");
+                            arduinoUUID = device.getUuids()[0].getUuid();
+                            arduinoBTModule = device;
+                            btReadings.setText("");
+                            connectToBTObservable
+                                    .observeOn(AndroidSchedulers.mainThread())
+                                    .subscribeOn(Schedulers.io())
+                                    .subscribe(valueRead -> {
+                                        btReadings.setText(valueRead);
+                                        loadingProgressBar.setVisibility(View.INVISIBLE);
+                                        clearValues.setVisibility(View.VISIBLE);
+                                    });
                         }
                     }
-
-                    Log.d(TAG, "Button Pressed");
                 }
+
+                Log.d(TAG, "Button Pressed");
             }
         });
 

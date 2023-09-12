@@ -23,7 +23,7 @@ public class ConnectThread extends Thread {
         // Use a temporary object that is later assigned to mmSocket
         // because mmSocket is final.
         BluetoothSocket tmp = null;
-        this.handler=handler;
+        this.handler = handler;
 
         try {
             // Get a BluetoothSocket to connect with the given BluetoothDevice.
@@ -68,7 +68,7 @@ public class ConnectThread extends Thread {
         }
     }
 
-    public BluetoothSocket getMmSocket(){
+    public BluetoothSocket getMmSocket() {
         return mmSocket;
     }
 }
